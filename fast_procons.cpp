@@ -44,31 +44,34 @@ class msg_queue {
     std::vector<array<uint8_t ,256>> msgs_;
     size_t queue_size_;
     alignas(64) size_t next_for_publishing_;
-    alignas(64) size_t next_for_reading_;
+    alignas(64) size_t last_read_;
     mutable mutex mt_;
     mutable condition_variable cv_;
+    
+    size_t get_next_index(size_t curr_value) const;
 };
 
 msg_queue msg_queue_g(1000);
 
 msg_queue::msg_queue(unsigned queue_size) : queue_size_(queue_size), 
-    next_for_publishing_(0U), next_for_reading_(0U) {
+    next_for_publishing_(0U), last_read_(queue_size_-1) {
+    static_assert(queue_size>0)
     msgs_.resize(queue_size);
+}
+
+size_t msg_queue::get_next_index(size_t curr_value) const {
+    return curr_value == queue_size_ ? 0 : curr_value + 1;
 }
 
 void msg_queue::publish(const uint8_t* data) {
     size_t nbytes = *data;
-    
+
     unique_lock_t lk(mt_);
-    while (next_for_publishing_ == next_for_reading_) {
+    while (next_for_publishing_ == get_next_index(last_read_)) {
         cv_.wait(lk);
     }
-    
     uint8_t* msg_ptr = &msgs_[next_for_publishing_][0];
-    ++next_for_publishing_;
-    if (next_for_publishing_ == queue_size_) {
-        next_for_publishing_ = 0;
-    }
+    next_for_publishing_ = get_next_index(next_for_publishing_);
     lk.unlock();
     memcpy(msg_ptr, data, nbytes + 1);
 }
