@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <condition_variable>
+#include <cstring>
 
 using namespace std;
 
