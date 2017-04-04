@@ -32,16 +32,12 @@ class msg_queue {
     bool consume(array<uint8_t, 256>&);
 
  private:
-    using unique_lock_t = unique_lock<std::mutex>;
-
     std::vector<array<uint8_t, 256>> msgs_;
     size_t queue_size_;
     using index_t = int64_t;
     alignas(64) atomic<index_t> last_published_;
     alignas(64) atomic<index_t> last_committed_;
     alignas(64) atomic<index_t> last_read_;
-
-    size_t get_next_index(size_t curr_value) const;
 };
 
 msg_queue::msg_queue(unsigned queue_size) :
