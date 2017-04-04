@@ -18,8 +18,11 @@ Consume() function should receive all records from all producers and should retu
 Expected results:
 
 1.The implementation should work correctly, without possibility of a deadlock or race conditions.
+
 2.The performance is important, it’s expected to finish processing all records as fast as possible.
+
 3.Identification of problems with current implementation is a plus.
+
 4.You will be expected to explain your code, describe alternative approaches and provide rationale for your choices.
  
 
