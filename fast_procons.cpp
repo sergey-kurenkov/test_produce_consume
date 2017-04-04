@@ -58,11 +58,11 @@ void msg_queue::publish(const uint8_t* data) {
     index_t where_to_publish = last_published + 1;
     while (true) {
         if (last_read_ != -1) {
-            if (where_to_publish - last_read_ >= queue_size_) {
+            if (static_cast<size_t>(where_to_publish - last_read_) >= queue_size_) {
                 continue;
             }
         } else {
-            if (where_to_publish >= queue_size_) {
+            if (static_cast<size_t>(where_to_publish) >= queue_size_) {
                 continue;
             }
         }
