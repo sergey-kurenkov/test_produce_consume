@@ -12,6 +12,7 @@
 #include <cstring>
 #include <atomic>
 #include <array>
+#include <tuple>
 
 using namespace std;
 
@@ -20,42 +21,33 @@ namespace {
 constexpr uint64_t MAX_SLEEP_NS = 100000;
 
 /////////////////////////////////////////////////////////////////////////////////
-//mutex mtx_g;
-//condition_variable cv_in;
-//condition_variable cv_out;
-//uint8_t data_g[256];
-//bool consumed_g = true;
 std::atomic<int> running_count_g(0);
 
 
 class msg_queue {
  public:
-    msg_queue(unsigned queue_size);
+    explicit msg_queue(unsigned queue_size);
 
     void publish(const uint8_t*);
-    void on_produce_finished();
-    bool consume(array<uint8_t ,256>&);
- 
+    bool consume(array<uint8_t, 256>&);
+
  private:
     using unique_lock_t = unique_lock<std::mutex>;
 
-    std::vector<array<uint8_t ,256>> msgs_;
+    std::vector<array<uint8_t, 256>> msgs_;
     size_t queue_size_;
-    using index_t = long;
+    using index_t = int64_t;
     alignas(64) atomic<index_t> last_published_;
     alignas(64) atomic<index_t> last_committed_;
     alignas(64) atomic<index_t> last_read_;
 
-    mutable mutex mt_;
-    mutable condition_variable cv_;
-    
     size_t get_next_index(size_t curr_value) const;
 };
 
-msg_queue::msg_queue(unsigned queue_size) :  
-	last_published_(-1),
-	last_committed_(-1),
-	last_read_(-1) {
+msg_queue::msg_queue(unsigned queue_size) :
+    last_published_(-1),
+    last_committed_(-1),
+    last_read_(-1) {
     if (queue_size < 1U) {
         queue_size = 1U;
     }
@@ -66,48 +58,44 @@ msg_queue::msg_queue(unsigned queue_size) :
 void msg_queue::publish(const uint8_t* data) {
     size_t nbytes = *data;
 
-	index_t last_published = last_published_.fetch_add(1);
-	index_t where_to_publish = last_published + 1;
-	while (true) {
-		if (last_read_ != -1) {
-			if (where_to_publish - last_read_ >= queue_size_) {
-				continue;
-			}
-		} else {
-			if (where_to_publish >= queue_size_) {
-				continue;
-			}
-		}
-		break;
-	}
-	size_t msg_index = where_to_publish % queue_size_;
-	memcpy(&msgs_[msg_index][0], data, nbytes + 1);
-	while (last_committed_ != last_published) {
-		continue;
-	}
-	++last_committed_;
+    index_t last_published = last_published_.fetch_add(1);
+    index_t where_to_publish = last_published + 1;
+    while (true) {
+        if (last_read_ != -1) {
+            if (where_to_publish - last_read_ >= queue_size_) {
+                continue;
+            }
+        } else {
+            if (where_to_publish >= queue_size_) {
+                continue;
+            }
+        }
+        break;
+    }
+    size_t msg_index = where_to_publish % queue_size_;
+    memcpy(&msgs_[msg_index][0], data, nbytes + 1);
+    while (last_committed_ != last_published) {
+        continue;
+    }
+    ++last_committed_;
 }
 
-bool msg_queue::consume(array<uint8_t ,256>& msg) {
-	while (true) {
-		if (last_read_ < last_committed_) {
-			++last_read_;
-			auto msg_index = last_read_% queue_size_;
-			msg = msgs_[msg_index];
-			return true;
-		}
+bool msg_queue::consume(array<uint8_t, 256>& msg) {
+    while (true) {
+        if (last_read_ < last_committed_) {
+            ++last_read_;
+            auto msg_index = last_read_% queue_size_;
+            msg = msgs_[msg_index];
+            return true;
+        }
 
-		if (running_count_g == 0) {
-			break;
-		}
-	}
-	return false;
+        if (running_count_g == 0) {
+            break;
+        }
+    }
+    return false;
 }
 
-
-void msg_queue::on_produce_finished() {
-    cv_.notify_one();
-}
 
 msg_queue msg_queue_g(10000);
 
@@ -188,8 +176,6 @@ void produce(records_f next_record) {
         }
         /////////////////////////////////////////////////////////////////////////////////
     }
-
-    msg_queue_g.on_produce_finished();
 }
 
 typedef tuple<uint8_t, uint64_t> result_t;
@@ -200,18 +186,18 @@ consume()
     uint8_t acc = 0;
     uint64_t cnt = 0;
 
-    array<uint8_t ,256> msg;
+    array<uint8_t, 256> msg;
     while (true) {
         /////////////////////////////////////////////////////////////////////////////////
         auto read_res = msg_queue_g.consume(msg);
         if (!read_res) {
-        	break;
+            break;
         }
-		++cnt;
-		auto len = msg[0];
-		for (unsigned i = 0, j = 1; i < len; ++i, ++j) {
-			acc ^= msg[j];
-		}
+        ++cnt;
+        auto len = msg[0];
+        for (unsigned i = 0, j = 1; i < len; ++i, ++j) {
+            acc ^= msg[j];
+        }
         /////////////////////////////////////////////////////////////////////////////////
     }
 
@@ -243,8 +229,6 @@ main(int argc, char** argv)
     for (auto&p : producers) {
         p.start(M);
     }
-
-    //this_thread::sleep_for(chrono::seconds(10000));
 
     auto ts1 = chrono::high_resolution_clock::now();
     auto result = consume();
