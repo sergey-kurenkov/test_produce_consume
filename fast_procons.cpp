@@ -109,7 +109,7 @@ void msg_queue::on_produce_finished() {
     cv_.notify_one();
 }
 
-msg_queue msg_queue_g(100);
+msg_queue msg_queue_g(10000);
 
 /////////////////////////////////////////////////////////////////////////////////
 
