@@ -6,6 +6,7 @@
 #include <random>
 #include <functional>
 #include <cassert>
+#include <pthread.h>
 
 #include <mutex>
 #include <condition_variable>
@@ -63,10 +64,12 @@ void msg_queue::publish(const uint8_t* data) {
     while (true) {
         if (last_read_ != -1) {
             if (where_to_publish - last_read_ >= queue_size_) {
+                pthread_yield();
                 continue;
             }
         } else {
             if (where_to_publish >= queue_size_) {
+                pthread_yield();
                 continue;
             }
         }
@@ -92,6 +95,7 @@ bool msg_queue::consume(array<uint8_t, 256>& msg) {
         if (running_count_g == 0) {
             break;
         }
+        pthread_yield();
     }
     return false;
 }
